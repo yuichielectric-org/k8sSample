@@ -1,12 +1,12 @@
 package myapp;
 
-import org.junit.jupiter.api.Test;
+import org.junit.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.Assert.assertEquals;
 
-class MyAppControllerTest {
+public class MyAppControllerTest {
     @Test
-    void test() {
+    public void test() {
         MyAppController sut = new MyAppController();
         assertEquals("index.html", sut.index());
     }
