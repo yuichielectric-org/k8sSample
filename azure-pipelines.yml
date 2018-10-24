@@ -1,19 +1,83 @@
-# Maven
-# Build your Java project and run tests with Apache Maven.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/java
-
-pool:
-  vmImage: 'Ubuntu 16.04'
+resources:
+- repo: self
+queue:
+  name: Hosted Ubuntu 1604
+  demands: maven
 
 steps:
 - task: Maven@3
+  displayName: 'Maven Application/pom.xml'
   inputs:
-    mavenPomFile: 'pom.xml'
-    mavenOptions: '-Xmx3072m'
-    javaHomeOption: 'JDKVersion'
-    jdkVersionOption: '1.10'
-    jdkArchitectureOption: 'x64'
-    publishJUnitResults: false
-    testResultsFiles: '**/TEST-*.xml'
-    goals: 'package'
+    mavenPomFile: Application/pom.xml
+
+
+- task: AzureResourceGroupDeployment@2
+  displayName: 'Azure Deployment:Create Azure Container Registry'
+  inputs:
+    azureSubscription: 'k8sSample - Service Endpoint'
+
+    resourceGroupName: k8sSamplebbd6
+
+    location: japaneast
+
+    csmFile: '$(System.DefaultWorkingDirectory)/**/containerRegistry-template.json'
+
+    overrideParameters: '-registryName "k8sSample97c8" -registryLocation "South Central US" -registrySku "Standard"'
+
+
+- task: Docker@0
+  displayName: 'Build an image'
+  inputs:
+    azureSubscription: 'k8sSample - Service Endpoint'
+
+    azureContainerRegistry: k8ssample97c8.azurecr.io
+
+    imageName: 'k8ssample97c8.azurecr.io/k8ssample:$(Build.BuildId)'
+
+
+- task: Docker@0
+  displayName: 'Push an image'
+  inputs:
+    azureSubscription: 'k8sSample - Service Endpoint'
+
+    azureContainerRegistry: '{"loginServer":"k8ssample97c8.azurecr.io", "id" : "/subscriptions/e4841790-d377-4dcf-9029-1b209f5d4029/resourceGroups/k8sSamplebbd6/providers/Microsoft.ContainerRegistry/registries/k8sSample97c8"}'
+
+    action: 'Push an image'
+
+    imageName: 'k8ssample97c8.azurecr.io/k8ssample:$(Build.BuildId)'
+
+
+- task: HelmInstaller@0
+  displayName: 'Install Helm 2.9.1'
+  inputs:
+    kubectlVersion: 1.10.3
+
+    checkLatestKubectl: false
+
+
+- task: HelmDeploy@0
+  displayName: 'helm package'
+  inputs:
+    azureSubscription: 'k8sSample - Service Endpoint'
+
+    azureResourceGroup: k8sSamplebbd6
+
+    kubernetesCluster: k8sSample
+
+    command: package
+
+    chartPath: '**/charts/sampleapp'
+
+    save: false
+
+
+- task: CopyFiles@2
+  displayName: 'Copy ARM templates'
+  inputs:
+    SourceFolder: ArmTemplates
+
+    TargetFolder: '$(build.artifactstagingdirectory)'
+
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifacts: drop'
